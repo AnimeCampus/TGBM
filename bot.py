@@ -4,14 +4,14 @@ from pyrogram import Client, filters
 from pyrogram.types import Message
 
 # Initialize Pyrogram
-api_id = YOUR_API_ID
-api_hash = 'YOUR_API_HASH'
-bot_token = 'YOUR_BOT_TOKEN'
+api_id = 19099900
+api_hash = '2b445de78e5baf012a0793e60bd4fbf5'
+bot_token = '6206599982:AAFhXRwC0SnPCBK4WDwzdz7TbTsM2hccgZc'
 
 app = Client('adventure_bot', api_id=api_id, api_hash=api_hash, bot_token=bot_token)
 
 # Initialize MongoDB connection
-mongo_url = 'YOUR_MONGODB_URL'
+mongo_url = 'mongodb+srv://sonu55:sonu55@cluster0.vqztrvk.mongodb.net/?retryWrites=true&w=majority'
 mongo_client = pymongo.MongoClient(mongo_url)
 db = mongo_client['adventure_db']
 
