@@ -19,7 +19,6 @@ db = mongo_client['adventure_db']
 player_collection = db['players']
 monster_collection = db['monsters']
 quest_collection = db['quests']
-item_collection = db['items']  
 
 # Character classes
 classes = ['warrior', 'mage', 'archer']
@@ -73,23 +72,26 @@ def create_character(client: Client, message: Message):
 @app.on_message(filters.command('go') & filters.private)
 def explore_location(client: Client, message: Message):
     user_id = message.from_user.id
-    location = message.text.split()[1].lower()
+    args = message.text.split()[1:]
+
+    if len(args) != 1 or args[0].lower() not in locations:
+        client.send_message(chat_id=user_id, text='Invalid command. Use /go [forest/cave/mountain] to explore.')
+        return
+
+    location = args[0].lower()
 
     player = player_collection.find_one({'_id': user_id})
 
-    # Check if the location is valid
-    if location not in locations:
-        client.send_message(chat_id=user_id, text='Invalid location. Use /go [forest/cave/mountain] to explore.')
-    else:
-        monster_pool = locations[location]
-        monster = random.choice(monster_pool)
-        monster_hp = random.randint(50 + player['level'] * 10, 100 + player['level'] * 20)
+    # Implement logic to handle exploration and encounters with monsters here.
+    monster_pool = locations[location]
+    monster = random.choice(monster_pool)
+    monster_hp = random.randint(50 + player['level'] * 10, 100 + player['level'] * 20)
 
-        # Save the current monster encounter in the player's data
-        player_collection.update_one({'_id': user_id}, {'$set': {'current_monster': monster, 'current_monster_hp': monster_hp}})
+    # Save the current monster encounter in the player's data
+    player_collection.update_one({'_id': user_id}, {'$set': {'current_monster': monster, 'current_monster_hp': monster_hp}})
 
-        client.send_message(chat_id=user_id, text=f"You have encountered a {monster} in the {location.capitalize()}!")
-        client.send_message(chat_id=user_id, text="What will you do?\n/attack - Attack the monster\n/flee - Flee from the battle")
+    client.send_message(chat_id=user_id, text=f"You have encountered a {monster} in the {location.capitalize()}!")
+    client.send_message(chat_id=user_id, text="What will you do?\n/attack - Attack the monster\n/flee - Flee from the battle")
 
 # Command: /attack [monster]
 @app.on_message(filters.command('attack') & filters.private)
@@ -120,12 +122,17 @@ def attack_monster(client: Client, message: Message):
                 client.send_message(chat_id=user_id, text=f"You have defeated the {monster}!")
                 exp_gained = random.randint(50 + player['level'] * 20, 100 + player['level'] * 30)
                 player['exp'] += exp_gained
-                handle_level_up(user_id)  # Check and handle level up
-                player_collection.update_one({'_id': user_id}, {'$set': {'exp': player['exp']}})
-                check_and_complete_quest(user_id, monster)  # Check and complete quests
+                if player['exp'] >= 100 + player['level'] * 30:
+                    player['level'] += 1
+                    player['exp'] = 0
+                    player['max_hp'] += 20
+                    player['hp'] = player['max_hp']
+                    client.send_message(chat_id=user_id, text=f"Congratulations! You leveled up to level {player['level']}!")
             else:
                 client.send_message(chat_id=user_id, text=f"The {monster} attacked you back for {monster_attack} damage.")
-                check_for_player_death(user_id)  # Check if player died
+                if player['hp'] <= 0:
+                    player['hp'] = player['max_hp']
+                    client.send_message(chat_id=user_id, text="You were defeated in battle, but you have been revived with full HP.")
 
             player_collection.update_one({'_id': user_id}, {'$set': {'hp': player['hp']}})
 
@@ -133,28 +140,13 @@ def attack_monster(client: Client, message: Message):
 @app.on_message(filters.command('flee') & filters.private)
 def flee_from_battle(client: Client, message: Message):
     user_id = message.from_user.id
-    player_collection.update_one({'_id': user_id}, {'$unset': {'current_monster': '', 'current_monster_hp': ''}})
-    client.send_message(chat_id=user_id, text="You fled from the battle. Use /go [location] to explore more.")
-
-# Command: /heal
-@app.on_message(filters.command('heal') & filters.private)
-def heal_player(client: Client, message: Message):
-    user_id = message.from_user.id
     player = player_collection.find_one({'_id': user_id})
 
-    if player['hp'] == player['max_hp']:
-        client.send_message(chat_id=user_id, text="Your HP is already at maximum.")
+    if 'current_monster' not in player:
+        client.send_message(chat_id=user_id, text="There's no monster to flee from. Use /go [location] to explore first.")
     else:
-        # Implement logic to consume a healing item or deduct gold for healing
-        # For simplicity, let's assume we have a healing item called 'potion' that restores 30 HP
-        if 'potion' in player['inventory']:
-            player['hp'] = min(player['hp'] + 30, player['max_hp'])
-            player['inventory'].remove('potion')
-            client.send_message(chat_id=user_id, text="You used a potion to heal 30 HP.")
-        else:
-            client.send_message(chat_id=user_id, text="You don't have any healing items.")
-
-        player_collection.update_one({'_id': user_id}, {'$set': {'hp': player['hp'], 'inventory': player['inventory']}})
+        player_collection.update_one({'_id': user_id}, {'$unset': {'current_monster': '', 'current_monster_hp': ''}})
+        client.send_message(chat_id=user_id, text="You fled from the battle. Use /go [location] to explore more.")
 
 # Command: /quests
 @app.on_message(filters.command('quests') & filters.private)
@@ -189,91 +181,60 @@ def show_inventory(client: Client, message: Message):
 @app.on_message(filters.command('equip') & filters.private)
 def equip_item(client: Client, message: Message):
     user_id = message.from_user.id
-    item = message.text.split()[1].lower()
+    args = message.text.split()
+
+    if len(args) < 2:
+        client.send_message(chat_id=user_id, text='Invalid command. Use /equip [item] to equip an item.')
+        return
+
+    item = args[1].lower()
     player = player_collection.find_one({'_id': user_id})
 
     if item not in player['inventory']:
         client.send_message(chat_id=user_id, text=f"{item} is not in your inventory.")
     else:
-        # Check if the item can be equipped based on its type and player's class
         item_data = get_item_data(item)
+
         if not item_data:
             client.send_message(chat_id=user_id, text="Invalid item.")
             return
 
-        if item_data['type'] not in get_allowed_equipment_for_class(player['class']):
+        allowed_equipment = get_allowed_equipment_for_class(player['class'])
+        if item_data['type'] not in allowed_equipment:
             client.send_message(chat_id=user_id, text=f"You cannot equip {item_data['name']} as a {player['class']}.")
             return
 
-        # Unequip the currently equipped item of the same type, if any
         equipped_item = player['equipment'].get(item_data['type'])
         if equipped_item:
-            # Move the currently equipped item back to the inventory
             player['inventory'].append(equipped_item)
             client.send_message(chat_id=user_id, text=f"{equipped_item} unequipped.")
 
-        # Equip the new item
         player['equipment'][item_data['type']] = item
         player['inventory'].remove(item)
 
-        # Update the player's data in the database
         player_collection.update_one({'_id': user_id}, {'$set': {'inventory': player['inventory'], 'equipment': player['equipment']}})
         client.send_message(chat_id=user_id, text=f"{item_data['name']} equipped.")
 
-# Function: Get item data
-def get_item_data(item):
-    # Implement logic to fetch the item's data from the database based on its name
-    # For this example, I'll use a simple dictionary as an item database
-    items_db = {
-        'sword': {'name': 'Sword', 'type': 'weapon', 'damage': 20},
-        'armor': {'name': 'Armor', 'type': 'armor', 'defense': 15},
-        'ring': {'name': 'Ring', 'type': 'accessory', 'bonus': 'hp'}
-        # Add more items and their data here
-    }
-    
-    return items_db.get(item)
-
-# Function: Get allowed equipment for class
-def get_allowed_equipment_for_class(char_class):
-    # Implement logic to determine the allowed equipment types for a given character class
-    allowed_equipment = {
-        'warrior': ['weapon', 'armor'],
-        'mage': ['weapon', 'accessory'],
-        'archer': ['weapon', 'armor', 'accessory']
-        # Add more character classes and their allowed equipment types here
-    }
-    
-    return allowed_equipment.get(char_class, [])
-
-# Function: Check and handle level up
-def handle_level_up(user_id):
+# Command: /stats
+@app.on_message(filters.command('stats') & filters.private)
+def show_stats(client: Client, message: Message):
+    user_id = message.from_user.id
     player = player_collection.find_one({'_id': user_id})
-    while player['exp'] >= 100 + player['level'] * 30:
-        player['level'] += 1
-        player['exp'] -= (100 + (player['level'] - 1) * 30)
-        player['max_hp'] += 20
-        player['hp'] = player['max_hp']
-        player_collection.update_one({'_id': user_id}, {'$set': {'level': player['level'], 'exp': player['exp'], 'max_hp': player['max_hp'], 'hp': player['hp']}})
-        client.send_message(chat_id=user_id, text=f"Congratulations! You leveled up to level {player['level']}!")
 
-# Function: Check and complete quests
-def check_and_complete_quest(user_id, monster):
-    player = player_collection.find_one({'_id': user_id})
-    for quest in quest_collection.find({'name': monster}):
-        if player['level'] >= quest['min_level']:
-            # Implement logic to complete the quest and reward the player
-            # For simplicity, let's just increase player's gold by quest reward amount
-            player['gold'] += quest['reward']
-            player_collection.update_one({'_id': user_id}, {'$set': {'gold': player['gold']}})
-            client.send_message(chat_id=user_id, text=f"Quest '{quest['name']}' completed! You earned {quest['reward']} gold.")
+    stats_text = f"Player: {player['name']}\nClass: {player['class'].capitalize()}\nLevel: {player['level']}\nXP: {player['exp']}\nHP: {player['hp']}/{player['max_hp']}"
+    client.send_message(chat_id=user_id, text=stats_text)
 
-# Function: Check if player died and revive
-def check_for_player_death(user_id):
+# Command: /heal
+@app.on_message(filters.command('heal') & filters.private)
+def heal_player(client: Client, message: Message):
+    user_id = message.from_user.id
     player = player_collection.find_one({'_id': user_id})
-    if player['hp'] <= 0:
-        player['hp'] = player['max_hp']
-        player_collection.update_one({'_id': user_id}, {'$set': {'hp': player['hp']}})
-        client.send_message(chat_id=user_id, text="You were defeated in battle, but you have been revived with full HP.")
+
+    heal_amount = random.randint(10, 20)
+    player['hp'] = min(player['hp'] + heal_amount, player['max_hp'])
+    player_collection.update_one({'_id': user_id}, {'$set': {'hp': player['hp']}})
+
+    client.send_message(chat_id=user_id, text=f"You have been healed for {heal_amount} HP. Current HP: {player['hp']}/{player['max_hp']}")
 
 # Command: /help
 @app.on_message(filters.command('help'))
@@ -287,14 +248,34 @@ def show_help(client: Client, message: Message):
     /go [location] - Explore new locations.
     /attack [monster] - Attack a monster.
     /flee - Flee from the battle.
-    /heal - Use a healing item to restore HP.
     /quests - View available quests.
     /inventory - View your inventory.
     /equip [item] - Equip an item.
+    /stats - Show player stats.
+    /heal - Heal yourself.
     /help - Show this help message.
     """
     client.send_message(chat_id=user_id, text=help_text)
 
+# Function: Get item data
+def get_item_data(item):
+    # Implement logic to fetch the item's data from the MongoDB based on its name
+    item_data = item_collection.find_one({'name': item})
+    return item_data
+
+# Function: Get allowed equipment for class
+def get_allowed_equipment_for_class(char_class):
+    # Implement logic to determine the allowed equipment types for a given character class
+    allowed_equipment = {
+        'warrior': ['weapon', 'armor'],
+        'mage': ['weapon', 'accessory'],
+        'archer': ['weapon', 'armor', 'accessory']
+        # Add more character classes and their allowed equipment types here
+    }
+    
+    return allowed_equipment.get(char_class, [])
+
+print("started") 
 
 # Run the bot
 app.run()
