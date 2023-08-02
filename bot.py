@@ -1,6 +1,10 @@
-import requests
-from pyrogram import Client, filters, Message
+from pyrogram import Client, filters
+from pyrogram.types import Message
 import random
+import requests
+
+# Rest of the code remains unchanged...
+
 
 API_ID = 19099900
 API_HASH = '2b445de78e5baf012a0793e60bd4fbf5'
