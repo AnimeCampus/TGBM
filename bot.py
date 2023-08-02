@@ -3,7 +3,6 @@ from pyrogram.types import Message
 import random
 import requests
 
-# Rest of the code remains unchanged...
 
 
 API_ID = 19099900
@@ -46,12 +45,8 @@ def get_random_question(category_id, difficulty):
         return format_question(random.choice(questions))
     return None
 
-def get_category_list():
-    url = "https://opentdb.com/api_category.php"
-    response = requests.get(url)
-    if response.status_code == 200:
-        return response.json()["trivia_categories"]
-    return []
+category_id = None
+difficulty = None
 
 @app.on_message(filters.command("start"))
 def start(_, message: Message):
@@ -79,6 +74,8 @@ def help_command(_, message: Message):
 @app.on_message(filters.command("quiz"))
 def quiz(_, message: Message):
     # Code to handle the quiz command and ask a random question
+    global category_id, difficulty  # Declare them as global
+
     user_id = message.from_user.id
     user_score = get_user_score(user_id)
     message.reply_text(f"Your current score: {user_score}")
@@ -108,6 +105,7 @@ def quiz(_, message: Message):
 def answer(_, message: Message):
     # Code to handle the answer command and check if the answer is correct
     user_id = message.from_user.id
+    global category_id, difficulty  # Declare them as global
 
     try:
         selected_option = int(message.command[1]) - 1
