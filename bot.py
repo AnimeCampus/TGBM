@@ -5,7 +5,6 @@ import random
 API_ID = 19099900
 API_HASH = '2b445de78e5baf012a0793e60bd4fbf5'
 BOT_TOKEN = '6206599982:AAFhXRwC0SnPCBK4WDwzdz7TbTsM2hccgZc'
-OTDB_API_TOKEN = 'your_otdb_api_token'
 
 app = Client("ninja_quiz_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
@@ -18,8 +17,8 @@ def get_user_score(user_id):
 def increase_user_score(user_id):
     user_scores[user_id] = get_user_score(user_id) + 1
 
-def fetch_questions():
-    url = f"https://opentdb.com/api.php?amount=5&type=multiple&token={OTDB_API_TOKEN}"
+def fetch_questions(category_id, difficulty):
+    url = f"https://opentdb.com/api.php?amount=5&category={category_id}&difficulty={difficulty}&type=multiple"
     response = requests.get(url)
     if response.status_code == 200:
         return response.json()["results"]
@@ -37,18 +36,41 @@ def format_question(question_data):
         "correct_answer": options.index(correct_answer)
     }
 
-def get_random_question():
-    questions = fetch_questions()
+def get_random_question(category_id, difficulty):
+    questions = fetch_questions(category_id, difficulty)
     if questions:
         return format_question(random.choice(questions))
     return None
+
+def get_category_list():
+    url = "https://opentdb.com/api_category.php"
+    response = requests.get(url)
+    if response.status_code == 200:
+        return response.json()["trivia_categories"]
+    return []
 
 @app.on_message(filters.command("start"))
 def start(_, message: Message):
     # Code to handle the start command
     user_id = message.from_user.id
     user_scores[user_id] = 0
-    message.reply_text("Welcome to the Ninja Quiz Bot! Use /quiz to start the quiz.")
+    message.reply_text("Welcome to the Ninja Quiz Bot! Use /help to see available categories and start the quiz.")
+
+@app.on_message(filters.command("help"))
+def help_command(_, message: Message):
+    # Code to handle the help command
+    categories = get_category_list()
+    categories_text = "\n".join([f"{category['id']}. {category['name']}" for category in categories])
+    help_text = f"""
+    Available Commands:
+    /start - Start the game
+    /help - Show available commands and categories
+    /quiz <category_id> <difficulty> - Start a quiz (e.g., /quiz 31 medium)
+    
+    Available Categories:
+    {categories_text}
+    """
+    message.reply_text(help_text)
 
 @app.on_message(filters.command("quiz"))
 def quiz(_, message: Message):
@@ -57,18 +79,26 @@ def quiz(_, message: Message):
     user_score = get_user_score(user_id)
     message.reply_text(f"Your current score: {user_score}")
 
-    question = get_random_question()
+    try:
+        category_id = int(message.command[1])
+        difficulty = message.command[2].lower()
 
-    if question:
-        question_text = question["question"]
-        options = question["options"]
+        if difficulty not in ["easy", "medium", "hard"]:
+            raise ValueError
 
-        # Format the question with options as a string
-        options_text = "\n".join([f"{index + 1}. {option}" for index, option in enumerate(options)])
+        question = get_random_question(category_id, difficulty)
+        if question:
+            question_text = question["question"]
+            options = question["options"]
 
-        message.reply_text(f"{question_text}\n\n{options_text}\n\nAnswer using /answer <option_number>.")
-    else:
-        message.reply_text("Failed to fetch a question from the API. Try again later.")
+            # Format the question with options as a string
+            options_text = "\n".join([f"{index + 1}. {option}" for index, option in enumerate(options)])
+
+            message.reply_text(f"{question_text}\n\n{options_text}\n\nAnswer using /answer <option_number>.")
+        else:
+            message.reply_text("Failed to fetch a question from the API. Try again later.")
+    except (IndexError, ValueError):
+        message.reply_text("Invalid command format. Use /quiz <category_id> <difficulty> (e.g., /quiz 31 medium).")
 
 @app.on_message(filters.command("answer"))
 def answer(_, message: Message):
@@ -77,7 +107,7 @@ def answer(_, message: Message):
 
     try:
         selected_option = int(message.command[1]) - 1
-        question = get_random_question()
+        question = get_random_question(category_id, difficulty)
         correct_answer = question["correct_answer"]
 
         if selected_option == correct_answer:
@@ -87,8 +117,6 @@ def answer(_, message: Message):
             message.reply_text("Oops, that's not the correct answer. Try again!")
     except (IndexError, ValueError):
         message.reply_text("Invalid command format. Use /answer <option_number>.")
-
-# Add more handlers as per your game mechanics
 
 if __name__ == "__main__":
     app.run()
