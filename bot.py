@@ -30,6 +30,14 @@ locations = {
     'mountain': ['griffin', 'yeti', 'dragon']
 }
 
+# Shop database
+shop_db = {
+    'sword': {'name': 'Sword', 'type': 'weapon', 'damage': 20, 'price': 50},
+    'armor': {'name': 'Armor', 'type': 'armor', 'defense': 15, 'price': 40},
+    'ring': {'name': 'Ring', 'type': 'accessory', 'bonus': 'hp', 'price': 30},
+    # Add more items and their data here
+}
+
 # Command: /start
 @app.on_message(filters.command('start'))
 def start_game(client: Client, message: Message):
@@ -129,7 +137,8 @@ def attack_monster(client: Client, message: Message):
                     player['hp'] = player['max_hp']
                     client.send_message(chat_id=user_id, text=f"Congratulations! You leveled up to level {player['level']}!")
             else:
-                client.send_message(chat_id=user_id, text=f"The {monster} attacked you back for {monster_attack} damage.")
+                # Reduce player HP based on monster attack
+                player['hp'] -= monster_attack
                 if player['hp'] <= 0:
                     player['hp'] = player['max_hp']
                     client.send_message(chat_id=user_id, text="You were defeated in battle, but you have been revived with full HP.")
@@ -274,6 +283,40 @@ def get_allowed_equipment_for_class(char_class):
     }
     
     return allowed_equipment.get(char_class, [])
+
+# Command: /buy [item]
+@app.on_message(filters.command('buy') & filters.private)
+def buy_item(client: Client, message: Message):
+    user_id = message.from_user.id
+    args = message.text.split()
+
+    if len(args) < 2:
+        client.send_message(chat_id=user_id, text='Invalid command. Use /buy [item] to buy an item.')
+        return
+
+    item = args[1].lower()
+
+    if item not in shop_db:
+        client.send_message(chat_id=user_id, text=f"{item} is not available in the shop.")
+        return
+
+    player = player_collection.find_one({'_id': user_id})
+    player_gold = player.get('gold', 500)
+    item_data = shop_db[item]
+
+    if player_gold < item_data['price']:
+        client.send_message(chat_id=user_id, text="You don't have enough gold to buy this item.")
+        return
+
+    player_gold -= item_data['price']
+    player['gold'] = player_gold
+
+    # Add the item to the player's inventory
+    player['inventory'].append(item)
+    player_collection.update_one({'_id': user_id}, {'$set': {'inventory': player['inventory'], 'gold': player_gold}})
+
+    client.send_message(chat_id=user_id, text=f"You bought {item_data['name']} for {item_data['price']} gold. You now have {player_gold} gold.")
+
 
 print("started") 
 
