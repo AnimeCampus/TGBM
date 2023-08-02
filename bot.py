@@ -3,8 +3,6 @@ from pyrogram.types import Message
 import random
 import requests
 
-
-
 API_ID = 19099900
 API_HASH = '2b445de78e5baf012a0793e60bd4fbf5'
 BOT_TOKEN = '6206599982:AAFhXRwC0SnPCBK4WDwzdz7TbTsM2hccgZc'
@@ -44,6 +42,13 @@ def get_random_question(category_id, difficulty):
     if questions:
         return format_question(random.choice(questions))
     return None
+
+def get_category_list():
+    url = "https://opentdb.com/api_category.php"
+    response = requests.get(url)
+    if response.status_code == 200:
+        return response.json()["trivia_categories"]
+    return []
 
 category_id = None
 difficulty = None
