@@ -11,12 +11,11 @@ bot_token = '6206599982:AAFhXRwC0SnPCBK4WDwzdz7TbTsM2hccgZc'
 
 app = Client("remove_bg_bot", api_id=api_id, api_hash=api_hash, bot_token=bot_token)
 
-
-def remove_background_from_image(image_url, output_filename):
+def remove_background_from_image(file_path, output_filename):
     response = requests.post(
         'https://api.remove.bg/v1.0/removebg',
         headers={'X-Api-Key': api_key},
-        files={'image_url': image_url},
+        files={'image_file': open(file_path, 'rb')},
     )
 
     if response.status_code == 200:
@@ -41,7 +40,7 @@ def remove_bg_command(client: Client, message: Message):
         return
 
     replied_message = message.reply_to_message
-    if not replied_message or not replied_message.photo:
+    if not replied_message or not replied_message.document:
         message.reply_text("Reply to an image with /rmbg <output_filename> to remove its background.")
         return
 
@@ -50,16 +49,14 @@ def remove_bg_command(client: Client, message: Message):
         message.reply_text("Invalid output filename extension. Please use .png or .jpg.")
         return
 
-    image = replied_message.photo.file_id
+    image = replied_message.document
     image_path = client.download_media(image)
-    bot_username = client.get_me().username
-    image_url = f'https://api.telegram.org/file/bot{bot_token}/{image_path}'
     
-    if remove_background_from_image(image_url, output_filename):
+    if remove_background_from_image(image_path, output_filename):
         message.reply_document("Here is the background removed image:", document=output_filename)
         os.remove(output_filename)
     else:
         message.reply_text("Failed to remove the background. Please try again later.")
 
-print("Started 🍁🎋") 
+
 app.run()
