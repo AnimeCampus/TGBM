@@ -6,7 +6,7 @@ from pyrogram.types import Message
 # Replace these with your actual credentials
 api_id = 19099900
 api_hash = '2b445de78e5baf012a0793e60bd4fbf5'
-api_key = 'YOUR_REMOVE_BG_API_KEY'
+api_key = 'tbWHBFNxFtKoZ3kaYbFaxuJG'
 bot_token = '6206599982:AAFhXRwC0SnPCBK4WDwzdz7TbTsM2hccgZc'
 
 app = Client("remove_bg_bot", api_id=api_id, api_hash=api_hash, bot_token=bot_token)
