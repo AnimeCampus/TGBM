@@ -11,6 +11,7 @@ bot_token = '6206599982:AAFhXRwC0SnPCBK4WDwzdz7TbTsM2hccgZc'
 
 app = Client("remove_bg_bot", api_id=api_id, api_hash=api_hash, bot_token=bot_token)
 
+
 def remove_background_from_image(image_url, output_filename):
     response = requests.post(
         'https://api.remove.bg/v1.0/removebg',
@@ -51,7 +52,8 @@ def remove_bg_command(client: Client, message: Message):
 
     image = replied_message.photo.file_id
     image_path = client.download_media(image)
-    image_url = f'https://api.telegram.org/file/bot{client.token}/{image_path}'
+    bot_username = client.get_me().username
+    image_url = f'https://api.telegram.org/file/bot{bot_token}/{image_path}'
     
     if remove_background_from_image(image_url, output_filename):
         message.reply_document("Here is the background removed image:", document=output_filename)
@@ -59,6 +61,5 @@ def remove_bg_command(client: Client, message: Message):
     else:
         message.reply_text("Failed to remove the background. Please try again later.")
 
-
-print("Started...🎋🍁") 
+print("Started 🍁🎋") 
 app.run()
