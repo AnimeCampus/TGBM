@@ -1,2 +1,2 @@
-pyrogram
-pymongo
+pyrogram==1.2.10
+Pillow==8.4.0
