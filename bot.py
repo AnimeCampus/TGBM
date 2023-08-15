@@ -5,7 +5,7 @@ from PIL import Image, ImageDraw
 from pyrogram import Client, filters
 from pyrogram.types import InputMediaPhoto
 
-app = Client("snake_ladder_bot", api_id=19099900, api_hash="2b445de78e5baf012a0793e60bd4fbf5", bot_token="6206599982:AAGELlIUapiHd88l5z4YuVwXp1h3tHMfotY)
+app = Client("snake_ladder_bot", api_id=19099900, api_hash="2b445de78e5baf012a0793e60bd4fbf5", bot_token="6206599982:AAGELlIUapiHd88l5z4YuVwXp1h3tHMfotY")
 
 players = []
 current_player_index = 0
