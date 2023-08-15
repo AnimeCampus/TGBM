@@ -132,6 +132,41 @@ def update_board(chat_id):
 def roll_dice():
     return random.randint(1, 6)
 
+@app.on_message(filters.text & filters.private)
+def handle_text_message(_, message):
+    process_message(_, message)
+
+print("Started")
+app.run()
+
+
+def update_player_position(player_index, dice_result):
+    global board
+
+    if players[player_index]:
+        position = board[player_index]
+        new_position = position + dice_result
+
+        if new_position in snakes:
+            new_position = snakes[new_position]
+        elif new_position in ladders:
+            new_position = ladders[new_position]
+
+        if new_position <= win_position:
+            board[player_index] = new_position
+
+def update_board(chat_id):
+    img = create_board_image()
+    img_byte_array = BytesIO()
+    img.save(img_byte_array, format="PNG")
+    img_byte_array.seek(0)
+
+    media = InputMediaPhoto(media=img_byte_array, caption="Current Game Board")
+    app.send_photo(chat_id=chat_id, photo=media)
+
+def roll_dice():
+    return random.randint(1, 6)
+
 @app.on_message(filters.text & ~filters.command)
 def handle_text_message(_, message):
     process_message(_, message)
