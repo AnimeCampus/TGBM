@@ -1,7 +1,7 @@
 import random
 from io import BytesIO
 from PIL import Image, ImageDraw
-from pyrogram import Client, filters, idle
+from pyrogram import Client, filters
 from pyrogram.types import InputMediaPhoto
 
 app = Client("snake_ladder_bot", api_id=19099900, api_hash="2b445de78e5baf012a0793e60bd4fbf5", bot_token="6206599982:AAGELlIUapiHd88l5z4YuVwXp1h3tHMfotY")
@@ -58,33 +58,27 @@ def start_game(_, message):
     current_player_index = 0
 
     app.send_message(message.chat.id, "Starting a new game!\nHow many players want to play (1-4)?")
-    app.register_next_step_handler(message, get_num_players)
+    conversation_states[message.chat.id] = "get_num_players"
 
-def get_num_players(_, message):
-    num_players = int(message.text)
-    app.send_message(message.chat.id, f"Great! Please send the names of {num_players} players, one by one.")
+def process_message(_, message):
+    chat_id = message.chat.id
 
-    app.register_next_step_handler(message, lambda msg: store_player_name(msg, num_players))
+    if chat_id in conversation_states:
+        state = conversation_states[chat_id]
 
-def store_player_name(message, num_players):
-    global players
+        if state == "get_num_players":
+            num_players = int(message.text)
+            players.clear()
+            conversation_states[chat_id] = "store_player_names"
+            app.send_message(chat_id, f"Great! Please send the names of {num_players} players, one by one.")
+        elif state == "store_player_names":
+            players.append(message.text)
+            if len(players) >= num_players:
+                conversation_states[chat_id] = "playing"
+                app.send_message(chat_id, f"Players: {', '.join(players)}\nStarting the game!")
 
-    players.append(message.text)
-    if len(players) < num_players:
-        app.send_message(message.chat.id, f"Player {len(players) + 1} name:")
-        app.register_next_step_handler(message, lambda msg: store_player_name(msg, num_players))
-    else:
-        app.send_message(message.chat.id, f"Players: {', '.join(players)}\nStarting the game!")
-
-        send_player_names(message.chat.id, 0)
-        update_board(message.chat.id)
-
-def send_player_names(chat_id, player_index):
-    if player_index >= len(players):
-        return
-
-    app.send_message(chat_id, f"{players[player_index]}, it's your turn. Use /roll to roll the dice.")
-    app.send_message(chat_id, f"{players[player_index]}, type /roll when you are ready!")
+                send_player_names(chat_id, 0)
+                update_board(chat_id)
 
 @app.on_message(filters.command("roll", prefixes="/"))
 def roll_command(_, message):
@@ -98,6 +92,13 @@ def roll_command(_, message):
         update_board(message.chat.id)
 
         next_player(message.chat.id)
+
+def send_player_names(chat_id, player_index):
+    if player_index >= len(players):
+        return
+
+    app.send_message(chat_id, f"{players[player_index]}, it's your turn. Use /roll to roll the dice.")
+    app.send_message(chat_id, f"{players[player_index]}, type /roll when you are ready!")
 
 def next_player(chat_id):
     global current_player_index
@@ -131,6 +132,9 @@ def update_board(chat_id):
 def roll_dice():
     return random.randint(1, 6)
 
+@app.on_message(filters.text & ~filters.command)
+def handle_text_message(_, message):
+    process_message(_, message)
+
 print("Started")
 app.run()
-idle() 
