@@ -1,2 +1,2 @@
-pyrogram==1.2.10
+pyrogram==2.0.106
 Pillow==8.4.0
