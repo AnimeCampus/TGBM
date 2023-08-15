@@ -1,8 +1,7 @@
 import random
 from io import BytesIO
 from PIL import Image, ImageDraw
-
-from pyrogram import Client, filters
+from pyrogram import Client, filters, idle
 from pyrogram.types import InputMediaPhoto
 
 app = Client("snake_ladder_bot", api_id=19099900, api_hash="2b445de78e5baf012a0793e60bd4fbf5", bot_token="6206599982:AAGELlIUapiHd88l5z4YuVwXp1h3tHMfotY")
@@ -18,10 +17,35 @@ ladders = {1: 38, 4: 14, 9: 31, 21: 42, 28: 84, 36: 44, 51: 67, 71: 91, 80: 100}
 win_position = 100
 
 def create_board_image():
-    # ... same as before ...
+    board_width = 400
+    board_height = 400
+    cell_size = board_width // board_size
+
+    img = Image.new("RGB", (board_width, board_height), "white")
+    draw = ImageDraw.Draw(img)
+
+    # Draw cells and fill them with colors
+    for row in range(board_size):
+        for col in range(board_size):
+            x1 = col * cell_size
+            y1 = row * cell_size
+            x2 = x1 + cell_size
+            y2 = y1 + cell_size
+
+            color = colors[(row + col) % len(colors)]
+            draw.rectangle([x1, y1, x2, y2], fill=color, outline="black")
+
+    return img
 
 def position_to_coordinates(position):
-    # ... same as before ...
+    row = (position - 1) // board_size
+    col = (position - 1) % board_size
+
+    # Convert to (x, y) coordinates
+    x = col * (400 // board_size) + (200 // board_size)
+    y = (board_size - row - 1) * (400 // board_size) + (200 // board_size)
+
+    return x, y
 
 @app.on_message(filters.command("start", prefixes="/"))
 def start_command(_, message):
@@ -29,18 +53,18 @@ def start_command(_, message):
 
 @app.on_message(filters.command("gstart", prefixes="/"))
 def start_game(_, message):
-    global players
+    global players, current_player_index
     players = []
     current_player_index = 0
 
     app.send_message(message.chat.id, "Starting a new game!\nHow many players want to play (1-4)?")
-    app.register_next_step_handler_by_chat_id(message.chat.id, get_num_players)
+    app.register_next_step_handler(message, get_num_players)
 
 def get_num_players(_, message):
     num_players = int(message.text)
     app.send_message(message.chat.id, f"Great! Please send the names of {num_players} players, one by one.")
 
-    app.register_next_step_handler_by_chat_id(message.chat.id, lambda _, msg: store_player_name(msg, num_players))
+    app.register_next_step_handler(message, lambda msg: store_player_name(msg, num_players))
 
 def store_player_name(message, num_players):
     global players
@@ -48,12 +72,12 @@ def store_player_name(message, num_players):
     players.append(message.text)
     if len(players) < num_players:
         app.send_message(message.chat.id, f"Player {len(players) + 1} name:")
-        app.register_next_step_handler_by_chat_id(message.chat.id, lambda _, msg: store_player_name(msg, num_players))
+        app.register_next_step_handler(message, lambda msg: store_player_name(msg, num_players))
     else:
         app.send_message(message.chat.id, f"Players: {', '.join(players)}\nStarting the game!")
 
         send_player_names(message.chat.id, 0)
-        update_board()
+        update_board(message.chat.id)
 
 def send_player_names(chat_id, player_index):
     if player_index >= len(players):
@@ -71,14 +95,14 @@ def roll_command(_, message):
         app.send_message(message.chat.id, f"{players[current_player_index]} rolled a {dice_result}!")
 
         update_player_position(current_player_index, dice_result)
-        update_board()
+        update_board(message.chat.id)
 
-        next_player()
+        next_player(message.chat.id)
 
-def next_player():
+def next_player(chat_id):
     global current_player_index
     current_player_index = (current_player_index + 1) % len(players)
-    send_player_names(message.chat.id, current_player_index)
+    send_player_names(chat_id, current_player_index)
 
 def update_player_position(player_index, dice_result):
     global board
@@ -95,16 +119,18 @@ def update_player_position(player_index, dice_result):
         if new_position <= win_position:
             board[player_index] = new_position
 
-def update_board():
+def update_board(chat_id):
     img = create_board_image()
     img_byte_array = BytesIO()
     img.save(img_byte_array, format="PNG")
     img_byte_array.seek(0)
 
     media = InputMediaPhoto(media=img_byte_array, caption="Current Game Board")
-    app.send_photo(chat_id=YOUR_CHAT_ID, photo=img_byte_array, caption="Current Game Board")
+    app.send_photo(chat_id=chat_id, photo=media)
 
+def roll_dice():
+    return random.randint(1, 6)
 
-print("Started") 
+print("Started")
 app.run()
 idle() 
